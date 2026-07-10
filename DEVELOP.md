@@ -122,6 +122,34 @@ Config.prompt(savedConfig);             // 弹窗引导填写
 | `llm/chatStream` | 流式 LLM 对话 | `messages`, `model`, `temperature` |
 | `runner/exec` | 代码生成 + 沙箱执行 | `messages`, `container`, `width`, `height`, `maxIter`, `onStart`, `onDone`, `onError`, `onRetry` |
 
+### 硬件插件（需 [AICP Shell](https://github.com/woozheng/aicp_shell) 环境）
+
+当页面运行在 AICP Shell 中时，`hardware.js` 自动注册 22 个硬件能力。Shell 环境不可用时跳过注册，不影响核心功能。
+
+| Receiver | 用途 | Payload 字段 |
+| --- | --- | --- |
+| `hw/camera/take` | 拍照 | — |
+| `hw/camera/gallery` | 从相册选择 | — |
+| `hw/scanner/scan` | 扫码 | — |
+| `hw/gps/locate` | 获取位置 | — |
+| `hw/bluetooth/scan` | 开始蓝牙扫描 | — |
+| `hw/bluetooth/devices` | 获取蓝牙设备列表 | — |
+| `hw/bluetooth/connect` | 连接蓝牙设备 | `address` |
+| `hw/audio/record` | 开始录音 | — |
+| `hw/audio/play` | 播放音频 | `path` |
+| `hw/fs/list` | 列出目录 | `path` |
+| `hw/fs/read` | 读取文件 | `path` |
+| `hw/fs/write` | 写入文件 | `path`, `content` |
+| `hw/fs/delete` | 删除文件 | `path` |
+| `hw/process/shell` | 执行命令 | `cmd` |
+| `hw/process/open` | 打开应用/文件 | `target` |
+| `hw/system/notify` | 发送通知 | `title`, `body` |
+| `hw/system/vibrate` | 震动 | `ms` |
+| `hw/system/battery` | 获取电量 | — |
+| `hw/system/network` | 获取网络状态 | — |
+| `hw/clipboard/copy` | 复制到剪贴板 | `text` |
+| `hw/clipboard/paste` | 从剪贴板粘贴 | — |
+
 ---
 
 ### `runner/exec` 沙箱全局变量
@@ -153,5 +181,6 @@ Config.prompt(savedConfig);             // 弹窗引导填写
     });
 })();
 ```
+硬件插件遵循相同模式，参考 `plugins/hardware.js`。
 
 在 `aicp-core.js` 的 `init()` 中加入新文件名即可自动加载。
