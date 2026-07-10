@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AICP JS Engine</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body {
+    font-family: -apple-system, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+}
+h1{color:#e94560;margin-bottom:16px;font-size:22px;flex-shrink:0}
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 1000px;
+}
+
+.input-row{display:flex;gap:8px}
+input {
+    flex: 1;
+    padding: 16px 20px;
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #1a1a5e;
+    border-radius: 10px;
+    font-size: 16px;
+    outline: none;
+    height: 56px;
+    min-width: 0;
+}
+
+.input-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+input:focus{border-color:#e94560}
+button{padding:12px 24px;background:#e94560;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:bold;white-space:nowrap}
+button:hover{background:#c23850}
+button:disabled{opacity:0.5;cursor:not-allowed}
+#aicp-output{width:800px;height:500px;min-width:400px;min-height:200px;background:#0f3460;border-radius:8px;overflow:hidden;resize:both;position:relative;margin-top:12px}#aicp-output {
+    width: 900px;
+    height: 600px;
+    min-width: 500px;
+    min-height: 300px;
+    background: #0f3460;
+    border-radius: 8px;
+    overflow: hidden;
+    resize: both;
+    position: relative;
+    margin-top: 16px;
+}
+#aicp-output::after{content:'';position:absolute;bottom:0;right:0;width:24px;height:24px;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,0.2) 50%);cursor:nwse-resize;border-radius:0 0 8px 0;pointer-events:none}
+.status-text{font-size:12px;color:#a0a0a0;text-align:center;padding:4px 0;flex-shrink:0}
+</style>
+</head>
+<body>
+<h1>🧠 AICP JS Engine</h1>
+<div class="main">
+    <div class="input-row">
+        <input id="cmdInput" placeholder="Speak your command" onkeydown="if(event.key==='Enter')run()">
+        <button id="runBtn" onclick="run()">Do it</button>
+    </div>
+</div>
+<div id="aicp-output"></div>
+<div id="status" class="status-text">引擎就绪 | 拖拽右下角自由调整容器大小</div>
+
+<script type="module">
+    import aicp from '/aicp-core/aicp-core.js';
+    
+    const runBtn = document.getElementById('runBtn');
+    const cmdInput = document.getElementById('cmdInput');
+    const output = document.getElementById('aicp-output');
+    const statusEl = document.getElementById('status');
+    
+    window.run = async function() {
+        const q = cmdInput.value.trim();
+        if (!q) return;
+        runBtn.disabled = true;
+        statusEl.textContent = '⏳ 处理中...';
+        
+        const rect = output.getBoundingClientRect();
+        
+        try {
+            const result = await aicp.send('runner/exec', {
+                messages: [{ role: 'user', content: q }],
+                maxIter: aicp.agent.get('maxIter', 5),
+                container: output,
+                width: Math.floor(rect.width) - 4,
+                height: Math.floor(rect.height) - 4,
+                onStart: () => {},
+                onDone: (data) => {
+                    statusEl.textContent = '✅ 完成 | 拖拽右下角自由调整容器大小';
+                },
+                onError: (err) => {
+                    statusEl.textContent = '❌ ' + err;
+                    output.innerHTML = `<div style="color:#e94560;padding:20px;">❌ ${err}</div>`;
+                },
+            });
+        } catch (e) {
+            statusEl.textContent = '❌ ' + e.message;
+            output.innerHTML = `<div style="color:#e94560;padding:20px;">❌ ${e.message}</div>`;
+        }
+        runBtn.disabled = false;
+        cmdInput.focus();
+    };
+</script>
+</body>
+</html>
