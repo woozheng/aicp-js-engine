@@ -71,6 +71,7 @@ button:disabled{opacity:0.5;cursor:not-allowed}
     <div class="input-row">
         <input id="cmdInput" placeholder="Speak your command" onkeydown="if(event.key==='Enter')run()">
         <button id="runBtn" onclick="run()">Do it</button>
+        <button id="settingsBtn" onclick="showSettings()" style="background:#1a1a5e;">⚙️</button>
     </div>
 </div>
 <div id="aicp-output"></div>
@@ -115,6 +116,35 @@ button:disabled{opacity:0.5;cursor:not-allowed}
         runBtn.disabled = false;
         cmdInput.focus();
     };
+
+    // 配置弹窗
+window.showSettings = function() {
+    const config = aicp.config || {};
+    const apiKey = prompt('API Key:', config.apiKey || '');
+    if (apiKey === null) return;
+    const baseUrl = prompt('Base URL:', config.baseUrl || 'https://gpt-agent.cc/v1');
+    if (baseUrl === null) return;
+    const model = prompt('模型:', config.model || 'doubao-seed-2.0-code');
+    if (model === null) return;
+    const maxIter = prompt('最大重试:', config.maxIter || 5);
+    if (maxIter === null) return;
+    const temperature = prompt('温度 (0-1):', config.temperature || 0.1);
+    if (temperature === null) return;
+
+    const newConfig = { 
+        apiKey, baseUrl, model, 
+        maxIter: parseInt(maxIter), 
+        temperature: parseFloat(temperature) 
+    };
+    Object.assign(aicp.config, newConfig);
+    aicp.agent.set('apiKey', apiKey);
+    aicp.agent.set('baseUrl', baseUrl);
+    aicp.agent.set('model', model);
+    aicp.agent.set('maxIter', parseInt(maxIter));
+    aicp.agent.set('temperature', parseFloat(temperature));
+    Config.save(newConfig);
+    statusEl.textContent = '✅ 配置已更新';
+};
 </script>
 </body>
 </html>
