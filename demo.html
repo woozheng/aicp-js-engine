@@ -101,19 +101,19 @@ button:disabled{opacity:0.5;cursor:not-allowed}
         statusEl.textContent = '✅ Config updated';
     };
 
-    window.saveHTML = async function() {
-        if (!output.children.length) {
-            alert('No content to save');
-            return;
-        }
-        
-        const code = output.getAttribute('data-aicp-code') || '';
-        const escapedCode = code
-            .replace(/\\/g, '\\\\')
-            .replace(/`/g, '\\`')
-            .replace(/\$/g, '\\$');
-        
-        const html = `<!DOCTYPE html>
+   window.saveHTML = async function() {
+    if (!output.children.length) {
+        alert('No content to save');
+        return;
+    }
+    
+    const code = output.getAttribute('data-aicp-code') || '';
+    const escapedCode = code
+        .replace(/\\/g, '\\\\')
+        .replace(/`/g, '\\`')
+        .replace(/\$/g, '\\$');
+    
+    const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -124,7 +124,7 @@ button:disabled{opacity:0.5;cursor:not-allowed}
 body{min-height:100vh;padding:8px}
 #aicp-container{position:relative;width:100%;min-height:calc(100vh - 16px)}
 #aicp-container > *{position:relative;z-index:1}
-#aicp-container canvas{position:absolute;top:0;left:0;z-index:0}
+#aicp-container > canvas{position:absolute;top:0;left:0;z-index:0}
 .config-btn{position:fixed;top:10px;right:10px;z-index:9999;padding:6px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px}
 .config-btn:hover{background:#2563eb}
 </style>
@@ -135,7 +135,6 @@ body{min-height:100vh;padding:8px}
 <script>
 const aicpCode=\`${escapedCode}\`;
 
-// LLM 配置管理
 function getLLMConfig() {
     return {
         apiKey: localStorage.getItem('aicp_api_key') || '',
@@ -168,48 +167,46 @@ window.showLLMConfig = function() {
     location.reload();
 };
 
-// 智能检测是否需要 LLM
-const needLLM = aicpCode.includes('llm(') || aicpCode.includes('llm ');
-let llm = null;
-if (needLLM) {
-    const cfg = getLLMConfig();
-    
-    // 首次打开弹窗
-    if (!cfg.apiKey) {
-        window.showLLMConfig();
-        cfg.apiKey = localStorage.getItem('aicp_api_key') || '';
+document.addEventListener('DOMContentLoaded', function() {
+    const needLLM = aicpCode.includes('llm(') || aicpCode.includes('llm ');
+    let llm = null;
+    if (needLLM) {
+        const cfg = getLLMConfig();
+        if (!cfg.apiKey) {
+            window.showLLMConfig();
+            cfg.apiKey = localStorage.getItem('aicp_api_key') || '';
+        }
+        if (cfg.apiKey) {
+            let llmCallCount = 0;
+            llm = async (msgs) => {
+                if (llmCallCount >= 3) throw new Error('LLM 调用次数超限');
+                llmCallCount++;
+                const resp = await fetch(cfg.baseUrl + '/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
+                    body: JSON.stringify({ model: cfg.model, messages: msgs, temperature: cfg.temperature })
+                });
+                const data = await resp.json();
+                return data.choices?.[0]?.message?.content || data.content || '';
+            };
+        }
     }
-    
-    if (cfg.apiKey) {
-        let llmCallCount = 0;
-        llm = async (msgs) => {
-            if (llmCallCount >= 3) throw new Error('LLM 调用次数超限');
-            llmCallCount++;
-            const resp = await fetch(cfg.baseUrl + '/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
-                body: JSON.stringify({ model: cfg.model, messages: msgs, temperature: cfg.temperature })
-            });
-            const data = await resp.json();
-            return data.choices?.[0]?.message?.content || data.content || '';
-        };
-    }
-}
 
-if(aicpCode&&aicpCode.trim()){try{const c=document.getElementById('aicp-container');const fn=new Function('__aicp_container__','__aicp_width__','__aicp_height__','llm','document','Math','Date','JSON','setTimeout','clearTimeout','setInterval','clearInterval','requestAnimationFrame','cancelAnimationFrame',aicpCode);fn(c,c.clientWidth||window.innerWidth-16,c.clientHeight||window.innerHeight-16,llm,document,Math,Date,JSON,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame,cancelAnimationFrame)}catch(e){console.error(e)}}
+    if(aicpCode&&aicpCode.trim()){try{const c=document.getElementById('aicp-container');const fn=new Function('__aicp_container__','__aicp_width__','__aicp_height__','llm','document','Math','Date','JSON','setTimeout','clearTimeout','setInterval','clearInterval','requestAnimationFrame','cancelAnimationFrame',aicpCode);fn(c,c.clientWidth||window.innerWidth-16,c.clientHeight||window.innerHeight-16,llm,document,Math,Date,JSON,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame,cancelAnimationFrame)}catch(e){console.error(e)}}
+});
 <\/script>
 </body>
 </html>`;
-        
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `aicp-generated-${Date.now()}.html`;
-        a.click();
-        URL.revokeObjectURL(url);
-        statusEl.textContent = '✅ Saved as standalone HTML';
-    };
+    
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aicp-generated-${Date.now()}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = '✅ Saved as standalone HTML';
+};
 </script>
 </body>
 </html>
