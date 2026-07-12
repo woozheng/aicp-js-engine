@@ -96,6 +96,11 @@ Canvas 和 DOM 元素的尺寸必须使用 __aicp_width__ 和 __aicp_height__，
                     const fn = new Function(...keys, code);
                     const result = fn(...values);
                     
+                    // 保存原始代码到容器属性
+                    if (el) {
+                        el.setAttribute('data-aicp-code', code);
+                    }
+                    
                     if (onDone) onDone(result);
                     return { ok: true, data: result };
                     

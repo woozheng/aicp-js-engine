@@ -6,61 +6,16 @@
 <title>AICP JS Engine</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body {
-    font-family: -apple-system, sans-serif;
-    background: #1a1a2e;
-    color: #e0e0e0;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 24px;
-}
+body{font-family:-apple-system,sans-serif;background:#1a1a2e;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px}
 h1{color:#e94560;margin-bottom:16px;font-size:22px;flex-shrink:0}
-.main {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    flex-shrink: 0;
-    width: 100%;
-    max-width: 1000px;
-}
-
-.input-row{display:flex;gap:8px}
-input {
-    flex: 1;
-    padding: 16px 20px;
-    background: #0f3460;
-    color: #e0e0e0;
-    border: 1px solid #1a1a5e;
-    border-radius: 10px;
-    font-size: 16px;
-    outline: none;
-    height: 56px;
-    min-width: 0;
-}
-
-.input-row {
-    display: flex;
-    gap: 12px;
-    width: 100%;
-}
-input:focus{border-color:#e94560}
+.main{display:flex;flex-direction:column;gap:16px;flex-shrink:0;width:100%;max-width:1000px}
+.input-row{display:flex;gap:12px;width:100%}
+#cmdInput{flex:1;padding:16px 20px;background:#0f3460;color:#e0e0e0;border:1px solid #1a1a5e;border-radius:10px;font-size:16px;outline:none;min-height:56px;max-height:200px;resize:vertical;overflow-y:auto;line-height:1.5;font-family:inherit}
+#cmdInput:focus{border-color:#e94560}
 button{padding:12px 24px;background:#e94560;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:bold;white-space:nowrap}
 button:hover{background:#c23850}
 button:disabled{opacity:0.5;cursor:not-allowed}
-#aicp-output{width:800px;height:500px;min-width:400px;min-height:200px;background:#0f3460;border-radius:8px;overflow:hidden;resize:both;position:relative;margin-top:12px}#aicp-output {
-    width: 900px;
-    height: 600px;
-    min-width: 500px;
-    min-height: 300px;
-    background: #0f3460;
-    border-radius: 8px;
-    overflow: hidden;
-    resize: both;
-    position: relative;
-    margin-top: 16px;
-}
+#aicp-output{width:900px;height:600px;min-width:500px;min-height:300px;background:#0f3460;border-radius:8px;overflow:hidden;resize:both;position:relative;margin-top:16px}
 #aicp-output::after{content:'';position:absolute;bottom:0;right:0;width:24px;height:24px;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,0.2) 50%);cursor:nwse-resize;border-radius:0 0 8px 0;pointer-events:none}
 .status-text{font-size:12px;color:#a0a0a0;text-align:center;padding:4px 0;flex-shrink:0}
 </style>
@@ -69,13 +24,14 @@ button:disabled{opacity:0.5;cursor:not-allowed}
 <h1>🧠 AICP JS Engine</h1>
 <div class="main">
     <div class="input-row">
-        <input id="cmdInput" placeholder="Speak your command" onkeydown="if(event.key==='Enter')run()">
+        <textarea id="cmdInput" placeholder="Speak your command..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();run()}"></textarea>
         <button id="runBtn" onclick="run()">Do it</button>
+        <button id="saveBtn" onclick="saveHTML()" style="background:#1a1a5e;">💾 Save</button>
         <button id="settingsBtn" onclick="showSettings()" style="background:#1a1a5e;">⚙️</button>
     </div>
 </div>
 <div id="aicp-output"></div>
-<div id="status" class="status-text">引擎就绪 | 拖拽右下角自由调整容器大小</div>
+<div id="status" class="status-text">引擎就绪 | 拖拽右下角自由调整容器大小 | Shift+Enter 换行</div>
 
 <script type="module">
     import aicp from '/aicp-core/aicp-core.js';
@@ -117,34 +73,78 @@ button:disabled{opacity:0.5;cursor:not-allowed}
         cmdInput.focus();
     };
 
-    // 配置弹窗
-window.showSettings = function() {
-    const config = aicp.config || {};
-    const apiKey = prompt('API Key:', config.apiKey || '');
-    if (apiKey === null) return;
-    const baseUrl = prompt('Base URL:', config.baseUrl || 'https://gpt-agent.cc/v1');
-    if (baseUrl === null) return;
-    const model = prompt('模型:', config.model || 'doubao-seed-2.0-code');
-    if (model === null) return;
-    const maxIter = prompt('最大重试:', config.maxIter || 5);
-    if (maxIter === null) return;
-    const temperature = prompt('温度 (0-1):', config.temperature || 0.1);
-    if (temperature === null) return;
+    window.showSettings = function() {
+        const config = aicp.config || {};
+        const apiKey = prompt('API Key:', config.apiKey || '');
+        if (apiKey === null) return;
+        const baseUrl = prompt('Base URL:', config.baseUrl || 'https://gpt-agent.cc/v1');
+        if (baseUrl === null) return;
+        const model = prompt('Model:', config.model || 'doubao-seed-2.0-code');
+        if (model === null) return;
+        const maxIter = prompt('Max Retries:', config.maxIter || 5);
+        if (maxIter === null) return;
+        const temperature = prompt('Temperature (0-1):', config.temperature || 0.1);
+        if (temperature === null) return;
 
-    const newConfig = { 
-        apiKey, baseUrl, model, 
-        maxIter: parseInt(maxIter), 
-        temperature: parseFloat(temperature) 
+        const newConfig = { 
+            apiKey, baseUrl, model, 
+            maxIter: parseInt(maxIter), 
+            temperature: parseFloat(temperature) 
+        };
+        Object.assign(aicp.config, newConfig);
+        aicp.agent.set('apiKey', apiKey);
+        aicp.agent.set('baseUrl', baseUrl);
+        aicp.agent.set('model', model);
+        aicp.agent.set('maxIter', parseInt(maxIter));
+        aicp.agent.set('temperature', parseFloat(temperature));
+        Config.save(newConfig);
+        statusEl.textContent = '✅ Config updated';
     };
-    Object.assign(aicp.config, newConfig);
-    aicp.agent.set('apiKey', apiKey);
-    aicp.agent.set('baseUrl', baseUrl);
-    aicp.agent.set('model', model);
-    aicp.agent.set('maxIter', parseInt(maxIter));
-    aicp.agent.set('temperature', parseFloat(temperature));
-    Config.save(newConfig);
-    statusEl.textContent = '✅ 配置已更新';
-};
+
+    window.saveHTML = async function() {
+        if (!output.children.length) {
+            alert('No content to save');
+            return;
+        }
+        
+        const code = output.getAttribute('data-aicp-code') || '';
+        const escapedCode = code
+            .replace(/\\/g, '\\\\')
+            .replace(/`/g, '\\`')
+            .replace(/\$/g, '\\$');
+        
+       const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AICP Generated</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;padding:8px}
+#aicp-container{position:relative;width:100%;min-height:calc(100vh - 16px)}
+#aicp-container > *{position:relative;z-index:1}
+#aicp-container canvas{position:absolute;top:0;left:0;z-index:0}
+</style>
+</head>
+<body>
+<div id="aicp-container"></div>
+<script>
+const aicpCode=\`${escapedCode}\`;
+if(aicpCode&&aicpCode.trim()){try{const c=document.getElementById('aicp-container');const fn=new Function('__aicp_container__','__aicp_width__','__aicp_height__','document','Math','Date','JSON','setTimeout','clearTimeout','setInterval','clearInterval','requestAnimationFrame','cancelAnimationFrame',aicpCode);fn(c,c.clientWidth||window.innerWidth-16,c.clientHeight||window.innerHeight-16,document,Math,Date,JSON,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame,cancelAnimationFrame)}catch(e){console.error(e)}}
+<\/script>
+</body>
+</html>`;
+        
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `aicp-generated-${Date.now()}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        statusEl.textContent = '✅ Saved as standalone HTML';
+    };
 </script>
 </body>
 </html>
