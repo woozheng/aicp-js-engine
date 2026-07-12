@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (cfg.apiKey) {
             let llmCallCount = 0;
             llm = async (msgs) => {
-                if (llmCallCount >= 3) throw new Error('LLM 调用次数超限');
+                if (llmCallCount >= 9999) throw new Error('LLM 调用次数超限');
                 llmCallCount++;
                 const resp = await fetch(cfg.baseUrl + '/chat/completions', {
                     method: 'POST',

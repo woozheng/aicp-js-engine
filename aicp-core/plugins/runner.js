@@ -79,7 +79,7 @@ Canvas 和 DOM 元素的尺寸必须使用 __aicp_width__ 和 __aicp_height__，
                     const llmTemperature = agent.get('temperature') || 0.1;
                     let llmCallCount = 0;
                     const llm = async (msgs) => {
-                        if (llmCallCount >= 3) throw new Error('LLM 调用次数超限 (最多 3 次)');
+                        if (llmCallCount >= 9999) throw new Error('LLM 调用次数超限 (最多 3 次)');
                         llmCallCount++;
                         const resp = await fetch(`${baseUrl}/chat/completions`, {
                             method: 'POST',
