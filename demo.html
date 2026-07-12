@@ -113,7 +113,7 @@ button:disabled{opacity:0.5;cursor:not-allowed}
             .replace(/`/g, '\\`')
             .replace(/\$/g, '\\$');
         
-       const html = `<!DOCTYPE html>
+        const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -125,13 +125,78 @@ body{min-height:100vh;padding:8px}
 #aicp-container{position:relative;width:100%;min-height:calc(100vh - 16px)}
 #aicp-container > *{position:relative;z-index:1}
 #aicp-container canvas{position:absolute;top:0;left:0;z-index:0}
+.config-btn{position:fixed;top:10px;right:10px;z-index:9999;padding:6px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px}
+.config-btn:hover{background:#2563eb}
 </style>
 </head>
 <body>
 <div id="aicp-container"></div>
+<button class="config-btn" onclick="showLLMConfig()">⚙️ LLM配置</button>
 <script>
 const aicpCode=\`${escapedCode}\`;
-if(aicpCode&&aicpCode.trim()){try{const c=document.getElementById('aicp-container');const fn=new Function('__aicp_container__','__aicp_width__','__aicp_height__','document','Math','Date','JSON','setTimeout','clearTimeout','setInterval','clearInterval','requestAnimationFrame','cancelAnimationFrame',aicpCode);fn(c,c.clientWidth||window.innerWidth-16,c.clientHeight||window.innerHeight-16,document,Math,Date,JSON,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame,cancelAnimationFrame)}catch(e){console.error(e)}}
+
+// LLM 配置管理
+function getLLMConfig() {
+    return {
+        apiKey: localStorage.getItem('aicp_api_key') || '',
+        baseUrl: localStorage.getItem('aicp_base_url') || 'https://gpt-agent.cc/v1',
+        model: localStorage.getItem('aicp_model') || 'doubao-seed-2.0-code',
+        temperature: parseFloat(localStorage.getItem('aicp_temperature')) || 0.1,
+    };
+}
+
+function saveLLMConfig(config) {
+    localStorage.setItem('aicp_api_key', config.apiKey);
+    localStorage.setItem('aicp_base_url', config.baseUrl);
+    localStorage.setItem('aicp_model', config.model);
+    localStorage.setItem('aicp_temperature', String(config.temperature));
+}
+
+window.showLLMConfig = function() {
+    const cfg = getLLMConfig();
+    const apiKey = prompt('API Key:', cfg.apiKey);
+    if (apiKey === null) return;
+    const baseUrl = prompt('Base URL:', cfg.baseUrl);
+    if (baseUrl === null) return;
+    const model = prompt('Model:', cfg.model);
+    if (model === null) return;
+    const temperature = parseFloat(prompt('Temperature (0-1):', String(cfg.temperature)));
+    if (isNaN(temperature)) return;
+    
+    saveLLMConfig({ apiKey, baseUrl, model, temperature });
+    alert('配置已更新，即将刷新页面');
+    location.reload();
+};
+
+// 智能检测是否需要 LLM
+const needLLM = aicpCode.includes('llm(') || aicpCode.includes('llm ');
+let llm = null;
+if (needLLM) {
+    const cfg = getLLMConfig();
+    
+    // 首次打开弹窗
+    if (!cfg.apiKey) {
+        window.showLLMConfig();
+        cfg.apiKey = localStorage.getItem('aicp_api_key') || '';
+    }
+    
+    if (cfg.apiKey) {
+        let llmCallCount = 0;
+        llm = async (msgs) => {
+            if (llmCallCount >= 3) throw new Error('LLM 调用次数超限');
+            llmCallCount++;
+            const resp = await fetch(cfg.baseUrl + '/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
+                body: JSON.stringify({ model: cfg.model, messages: msgs, temperature: cfg.temperature })
+            });
+            const data = await resp.json();
+            return data.choices?.[0]?.message?.content || data.content || '';
+        };
+    }
+}
+
+if(aicpCode&&aicpCode.trim()){try{const c=document.getElementById('aicp-container');const fn=new Function('__aicp_container__','__aicp_width__','__aicp_height__','llm','document','Math','Date','JSON','setTimeout','clearTimeout','setInterval','clearInterval','requestAnimationFrame','cancelAnimationFrame',aicpCode);fn(c,c.clientWidth||window.innerWidth-16,c.clientHeight||window.innerHeight-16,llm,document,Math,Date,JSON,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame,cancelAnimationFrame)}catch(e){console.error(e)}}
 <\/script>
 </body>
 </html>`;

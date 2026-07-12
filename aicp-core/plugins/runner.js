@@ -6,13 +6,13 @@
         const { 
             messages, 
             maxIter = 5, 
-            container,           // 渲染容器：DOM元素、选择器字符串、或 null
-            width,               // 容器宽度（可选，不传自动读容器尺寸）
-            height,              // 容器高度（可选，不传自动读容器尺寸）
-            onStart,             // 开始回调
-            onDone,              // 完成回调
-            onError,             // 错误回调
-            onRetry,             // 重试回调 (iteration, error)
+            container,
+            width,
+            height,
+            onStart,
+            onDone,
+            onError,
+            onRetry,
         } = env.payload;
         
         const model = agent.get('model') || 'gpt-3.5-turbo';
@@ -20,11 +20,13 @@
 
         const systemPrompt = `你是 AICP 协议运行时。你是执行者，不是聊天助手。
 任何需求都必须用 JavaScript 代码实现，用 \`\`\`js 代码块包裹。
-
+即使用户需求是翻译、分析、总结，你也必须生成带输入框、按钮、输出框的完整应用。
+不要直接返回文本结果。不要解释你做了什么，只输出代码块。
 重要：代码中已注入以下全局变量：
 - __aicp_container__：DOM 元素，所有渲染操作通过它完成
 - __aicp_width__：容器宽度（像素）
 - __aicp_height__：容器高度（像素）
+- llm：受限的 LLM 调用函数，用于分析、翻译、总结。每次执行最多调 3 次。用法：const result = await llm([{role:'user',content:'...'}]);
 
 示例：
 \`\`\`js
@@ -48,18 +50,15 @@ Canvas 和 DOM 元素的尺寸必须使用 __aicp_width__ 和 __aicp_height__，
             ...messages
         ];
 
-        // 解析容器
         const el = typeof container === 'string' 
             ? document.querySelector(container) 
             : container;
 
-        // 清空容器并确保最小高度
         if (el) {
             el.innerHTML = '';
             if (el.clientHeight === 0) el.style.minHeight = '300px';
         }
 
-        // 容器尺寸：外部传入 > 容器实际尺寸 > 默认值
         const w = (width || (el ? el.clientWidth : 800) || 800) - 4;
         const h = (height || (el ? el.clientHeight : 600) || 600) - 4;
 
@@ -73,10 +72,29 @@ Canvas 和 DOM 元素的尺寸必须使用 __aicp_width__ 和 __aicp_height__，
 
             if (code) {
                 try {
+                    // 受限的 LLM 调用函数 — 自包含，不依赖 registry
+                    const baseUrl = agent.get('baseUrl') || 'https://api.deepseek.com/v1';
+                    const apiKey = agent.get('apiKey') || '';
+                    const llmModel = agent.get('model') || 'deepseek-chat';
+                    const llmTemperature = agent.get('temperature') || 0.1;
+                    let llmCallCount = 0;
+                    const llm = async (msgs) => {
+                        if (llmCallCount >= 3) throw new Error('LLM 调用次数超限 (最多 3 次)');
+                        llmCallCount++;
+                        const resp = await fetch(`${baseUrl}/chat/completions`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                            body: JSON.stringify({ model: llmModel, messages: msgs, temperature: llmTemperature })
+                        });
+                        const data = await resp.json();
+                        return data.choices?.[0]?.message?.content || data.content || '';
+                    };
+
                     const sandbox = { 
                         __aicp_container__: el,
                         __aicp_width__: w,
                         __aicp_height__: h,
+                        llm,
                         document,
                         console,
                         fetch,
@@ -96,7 +114,6 @@ Canvas 和 DOM 元素的尺寸必须使用 __aicp_width__ 和 __aicp_height__，
                     const fn = new Function(...keys, code);
                     const result = fn(...values);
                     
-                    // 保存原始代码到容器属性
                     if (el) {
                         el.setAttribute('data-aicp-code', code);
                     }

@@ -25,6 +25,8 @@ Only put git files in your web static directory,you have a aicp js engine too.
 
 Generate Images、Generate Games、Generate Applications，Generate Everything。
 
+New: Save functionality — share images, animations, HTML, tools, and applications with anyone.
+
 ---
 
 ## Showcase
@@ -44,6 +46,15 @@ Generate Images、Generate Games、Generate Applications，Generate Everything�
 |:--:|
 | Resume Form |
 
+### JS Generates AI tools
+| ![translator tool ](images/ai-tools.png) |
+|:--:|
+| AI translator tool |
+
+| ![image analyze tool ](images/img_tools.png) |
+|:--:|
+| AI image analyze tool |
+
 ### JS Generates Everything
 | ![word](images/word.png) | ![music](images/music.png) |
 |:--:|:--:|
@@ -51,7 +62,7 @@ Generate Images、Generate Games、Generate Applications，Generate Everything�
 
 ---
 
-**The boundary of JS is the boundary of the engine.**
+**The boundary of JS is the boundary of the engine. Humans only need to speak their needs.**
 
 ---
 
