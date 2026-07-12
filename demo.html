@@ -74,32 +74,39 @@ button:disabled{opacity:0.5;cursor:not-allowed}
     };
 
     window.showSettings = function() {
-        const config = aicp.config || {};
-        const apiKey = prompt('API Key:', config.apiKey || '');
-        if (apiKey === null) return;
-        const baseUrl = prompt('Base URL:', config.baseUrl || 'https://gpt-agent.cc/v1');
-        if (baseUrl === null) return;
-        const model = prompt('Model:', config.model || 'doubao-seed-2.0-code');
-        if (model === null) return;
-        const maxIter = prompt('Max Retries:', config.maxIter || 5);
-        if (maxIter === null) return;
-        const temperature = prompt('Temperature (0-1):', config.temperature || 0.1);
-        if (temperature === null) return;
+    const config = aicp.config || {};
+    const apiKey = prompt('API Key:', config.apiKey || '');
+    if (apiKey === null) return;
+    const baseUrl = prompt('Base URL:', config.baseUrl || 'https://gpt-agent.cc/v1');
+    if (baseUrl === null) return;
+    const model = prompt('Model:', config.model || 'doubao-seed-2.0-code');
+    if (model === null) return;
+    const maxIter = prompt('Max Retries:', config.maxIter || 5);
+    if (maxIter === null) return;
+    const temperature = prompt('Temperature (0-1):', config.temperature || 0.1);
+    if (temperature === null) return;
 
-        const newConfig = { 
-            apiKey, baseUrl, model, 
-            maxIter: parseInt(maxIter), 
-            temperature: parseFloat(temperature) 
-        };
-        Object.assign(aicp.config, newConfig);
-        aicp.agent.set('apiKey', apiKey);
-        aicp.agent.set('baseUrl', baseUrl);
-        aicp.agent.set('model', model);
-        aicp.agent.set('maxIter', parseInt(maxIter));
-        aicp.agent.set('temperature', parseFloat(temperature));
-        Config.save(newConfig);
-        statusEl.textContent = '✅ Config updated';
+    const newConfig = { 
+        apiKey, baseUrl, model, 
+        maxIter: parseInt(maxIter), 
+        temperature: parseFloat(temperature) 
     };
+    Object.assign(aicp.config, newConfig);
+    aicp.agent.set('apiKey', apiKey);
+    aicp.agent.set('baseUrl', baseUrl);
+    aicp.agent.set('model', model);
+    aicp.agent.set('maxIter', parseInt(maxIter));
+    aicp.agent.set('temperature', parseFloat(temperature));
+    
+    // 不管有没有 Config，都写 localStorage
+    try {
+        Config.save(newConfig);
+    } catch(e) {
+        localStorage.setItem('aicp_config', JSON.stringify(newConfig));
+    }
+    
+    statusEl.textContent = '✅ Config updated';
+};
 
    window.saveHTML = async function() {
     if (!output.children.length) {
