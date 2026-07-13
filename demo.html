@@ -201,32 +201,46 @@ button:disabled{opacity:0.5;cursor:not-allowed}
     document.addEventListener('touchcancel', endDrag);
     
     window.run = async function() {
-        const q = cmdInput.value.trim();
-        if (!q) return;
-        runBtn.disabled = true;
-        statusEl.textContent = '⏳ 处理中...';
-        const rect = output.getBoundingClientRect();
-        try {
-            const result = await aicp.send('runner/exec', {
-                messages: [{ role: 'user', content: q }],
-                maxIter: aicp.agent.get('maxIter', 5),
-                container: output,
-                width: Math.floor(rect.width) - 4,
-                height: Math.floor(rect.height) - 4,
-                onStart: () => {},
-                onDone: (d) => { statusEl.textContent = '✅ 完成'; },
-                onError: (e) => {
-                    statusEl.textContent = '❌ ' + e;
-                    output.innerHTML = `<div style="color:#e94560;padding:20px;">❌ ${e}</div>`;
-                },
-            });
-        } catch (e) {
-            statusEl.textContent = '❌ ' + e.message;
-            output.innerHTML = `<div style="color:#e94560;padding:20px;">❌ ${e.message}</div>`;
-        }
-        runBtn.disabled = false;
-        cmdInput.focus();
-    };
+    const q = cmdInput.value.trim();
+    if (!q) return;
+    runBtn.disabled = true;
+    statusEl.textContent = '⏳ 处理中...';
+    const rect = output.getBoundingClientRect();
+    // 清空旧代码标记
+    output.removeAttribute('data-aicp-code');
+    try {
+        const result = await aicp.send('runner/exec', {
+            messages: [{ role: 'user', content: q }],
+            maxIter: aicp.agent.get('maxIter', 5),
+            container: output,
+            width: Math.floor(rect.width) - 4,
+            height: Math.floor(rect.height) - 4,
+            onStart: () => {},
+            onDone: (d) => { 
+                statusEl.textContent = '✅ 完成';
+                // 强制写入引擎返回完整执行代码
+                if(d && typeof d.code === 'string' && d.code.trim()){
+                    output.setAttribute('data-aicp-code', d.code.trim());
+                }
+                // 额外备份当前DOM字符串到另一个属性兜底
+                output.setAttribute('data-dom-snap', output.innerHTML);
+            },
+            onError: (e) => {
+                statusEl.textContent = '❌ ' + e;
+                output.innerHTML = `<div style="color:#e94560;padding:20px;">❌ ${e}</div>`;
+                output.removeAttribute('data-aicp-code');
+                output.removeAttribute('data-dom-snap');
+            },
+        });
+    } catch (e) {
+        statusEl.textContent = '❌ ' + e.message;
+        output.innerHTML = `<div style="color:#e94560;padding:20px;">❌ ${e.message}</div>`;
+        output.removeAttribute('data-aicp-code');
+        output.removeAttribute('data-dom-snap');
+    }
+    runBtn.disabled = false;
+    cmdInput.focus();
+};
 
     window.showSettings = function() {
         const saved = localStorage.getItem('aicp_config');
@@ -263,11 +277,32 @@ button:disabled{opacity:0.5;cursor:not-allowed}
         };
     };
 
-    window.saveHTML = async function() {
-        if (!output.children.length) { alert('No content to save'); return; }
-        const code = output.getAttribute('data-aicp-code') || '';
-        const escapedCode = code.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
-        const html = `<!DOCTYPE html>
+ window.saveHTML = async function() {
+    if (!output.children.length) {
+        alert('No content to save');
+        return;
+    }
+    const rect = output.getBoundingClientRect();
+    const exportW = Math.floor(rect.width) - 4;
+    const exportH = Math.floor(rect.height) - 4;
+
+    let code = output.getAttribute('data-aicp-code') || '';
+    if (!code.trim()) {
+        const domHtml = output.getAttribute('data-dom-snap') || output.innerHTML;
+        const safeDom = domHtml
+            .replace(/\\/g, '\\\\')
+            .replace(/`/g, '\\`')
+            .replace(/\$/g, '\\$');
+        code = `container.innerHTML = \`${safeDom}\`;`;
+    }
+    code = code.replace(/c\.appendChild\(canvas\);\s*$/, '');
+    const escapedCode = code
+        .replace(/\\/g, '\\\\')
+        .replace(/`/g, '\\`')
+        .replace(/\$/g, '\\$')
+        .replace(/\n/g, '\\n');
+
+    const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -290,60 +325,111 @@ body{min-height:100vh;padding:8px}
 </head>
 <body>
 <div id="aicp-container"></div>
-<button class="config-btn" onclick="showLLMConfig()">⚙️ LLM配置</button>
+<button class="config-btn" id="openCfgBtn">⚙️ LLM配置</button>
 <script>
 const aicpCode=\`${escapedCode}\`;
+const fixedW = ${exportW};
+const fixedH = ${exportH};
 
 function getLLMConfig() {
-    try { const saved = JSON.parse(localStorage.getItem('aicp_config')); if (saved && saved.apiKey) return saved; } catch(e) {}
-    return { apiKey: '', baseUrl: 'https://gpt-agent.cc/v1', model: 'doubao-seed-2.0-code', temperature: 0.1 };
+    try { 
+        const saved = JSON.parse(localStorage.getItem("aicp_config")); 
+        if (saved && saved.apiKey) return saved; 
+    } catch(e) {}
+    return { apiKey: "", baseUrl: "https://gpt-agent.cc/v1", model: "doubao-seed-2.0-code", temperature: 0.1 };
 }
-function saveLLMConfig(c) { localStorage.setItem('aicp_config', JSON.stringify(c)); }
+function saveLLMConfig(c) { 
+    localStorage.setItem("aicp_config", JSON.stringify(c)); 
+}
 
-window.showLLMConfig = function() {
+function createConfigPanel() {
     const cfg = getLLMConfig();
-    const ov = document.createElement('div');
-    ov.className = 'cfg-overlay';
-    ov.innerHTML = '<div class="cfg-box"><h3>⚙️ Config</h3><input id="cfgKey" placeholder="API Key" value="'+cfg.apiKey+'"><input id="cfgUrl" placeholder="Base URL" value="'+cfg.baseUrl+'"><input id="cfgModel" placeholder="Model" value="'+cfg.model+'"><div style="display:flex;gap:10px;"><button style="background:#333;color:#fff" onclick="document.body.removeChild(this.closest(\'.cfg-overlay\'))">Cancel</button><button id="cfgSave" style="background:#e94560;color:#fff">Save</button></div></div>';
+    const ov = document.createElement("div");
+    ov.className = "cfg-overlay";
+    ov.innerHTML = '<div class="cfg-box"><h3>⚙️ Config</h3><input id="cfgKey" placeholder="API Key" value="'+cfg.apiKey+'"><input id="cfgUrl" placeholder="Base URL" value="'+cfg.baseUrl+'"><input id="cfgModel" placeholder="Model" value="'+cfg.model+'"><div style="display:flex;gap:10px;"><button id="cancelBtn" style="background:#333;color:#fff">Cancel</button><button id="cfgSave" style="background:#e94560;color:#fff">Save</button></div></div>';
     document.body.appendChild(ov);
-    document.getElementById('cfgSave').onclick = function() {
-        const c = { apiKey: document.getElementById('cfgKey').value.trim(), baseUrl: document.getElementById('cfgUrl').value.trim() || 'https://gpt-agent.cc/v1', model: document.getElementById('cfgModel').value.trim() || 'doubao-seed-2.0-code', temperature: 0.1 };
+
+    // 取消按钮 直接绑定事件，无内嵌onclick
+    ov.querySelector("#cancelBtn").addEventListener("click", () => {
+        ov.remove();
+    });
+    // 保存按钮
+    ov.querySelector("#cfgSave").addEventListener("click", () => {
+        const c = {
+            apiKey: ov.querySelector("#cfgKey").value.trim(),
+            baseUrl: ov.querySelector("#cfgUrl").value.trim() || "https://gpt-agent.cc/v1",
+            model: ov.querySelector("#cfgModel").value.trim() || "doubao-seed-2.0-code",
+            temperature: 0.1
+        };
         saveLLMConfig(c);
-        document.body.removeChild(ov);
-        alert('配置已更新，即将刷新页面');
+        ov.remove();
+        alert("配置已更新，页面刷新");
         location.reload();
-    };
-};
+    });
+}
+
+window.showLLMConfig = createConfigPanel;
+document.getElementById("openCfgBtn").addEventListener("click", createConfigPanel);
 
 document.addEventListener('DOMContentLoaded', function() {
     const needLLM = aicpCode.includes('llm(') || aicpCode.includes('llm ');
     let llm = null;
     if (needLLM) {
         let cfg = getLLMConfig();
-        if (!cfg.apiKey) { window.showLLMConfig(); cfg = getLLMConfig(); }
+        if (!cfg.apiKey) {
+            createConfigPanel();
+        }
         if (cfg.apiKey) {
             let llmCallCount = 0;
-            llm = async (msgs) => {
-                if (llmCallCount >= 9999) throw new Error('LLM 调用次数超限');
+            llm = async function(msgs) {
+                if (llmCallCount >= 9999) throw new Error("LLM调用次数超限");
                 llmCallCount++;
-                const resp = await fetch(cfg.baseUrl + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey }, body: JSON.stringify({ model: cfg.model, messages: msgs, temperature: cfg.temperature }) });
-                const data = await resp.json();
-                return data.choices?.[0]?.message?.content || data.content || '';
+                try {
+                    const resp = await fetch(cfg.baseUrl + "/chat/completions", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer " + cfg.apiKey
+                        },
+                        body: JSON.stringify({
+                            model: cfg.model,
+                            messages: msgs,
+                            temperature: cfg.temperature
+                        })
+                    });
+                    if (!resp.ok) {
+                        throw new Error("接口异常，状态码：" + resp.status);
+                    }
+                    const data = await resp.json();
+                    if (!data.choices || !data.choices[0]?.message?.content) {
+                        throw new Error("模型返回数据为空，请检查密钥/接口地址");
+                    }
+                    return data.choices[0].message.content;
+                } catch (err) {
+                    // 捕获所有LLM错误弹窗提示用户
+                    alert("LLM调用失败：" + err.message + "\\n请核对API Key、接口地址是否正确");
+                    return "";
+                }
             };
         }
     }
-    if(aicpCode&&aicpCode.trim()){try{const c=document.getElementById('aicp-container');const fn=new Function('__aicp_container__','__aicp_width__','__aicp_height__','llm','document','Math','Date','JSON','setTimeout','clearTimeout','setInterval','clearInterval','requestAnimationFrame','cancelAnimationFrame',aicpCode);fn(c,c.clientWidth||window.innerWidth-16,c.clientHeight||window.innerHeight-16,llm,document,Math,Date,JSON,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame,cancelAnimationFrame)}catch(e){console.error(e)}}
+    if(aicpCode&&aicpCode.trim()){
+        const c=document.getElementById("aicp-container");
+        const fn=new Function("__aicp_container__","__aicp_width__","__aicp_height__","llm","document","Math","Date","JSON","setTimeout","clearTimeout","setInterval","clearInterval","requestAnimationFrame","cancelAnimationFrame",aicpCode);
+        fn(c, fixedW, fixedH, llm, document,Math,Date,JSON,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame,cancelAnimationFrame);
+    }
 });
 <\/script>
 </body>
 </html>`;
-        const blob = new Blob([html], { type: 'text/html' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `aicp-generated-${Date.now()}.html`;
-        a.click();
-        statusEl.textContent = '✅ Saved as standalone HTML';
-    };
+    const blob = new Blob([html], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `aicp-generated-${Date.now()}.html`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    statusEl.textContent = '✅ Saved as standalone HTML';
+};
 </script>
 </body>
 </html>
