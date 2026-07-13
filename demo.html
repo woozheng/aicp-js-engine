@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AICP JS Engine</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -15,9 +15,25 @@ h1{color:#e94560;margin-bottom:16px;font-size:22px;flex-shrink:0}
 button{padding:12px 24px;background:#e94560;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:bold;white-space:nowrap}
 button:hover{background:#c23850}
 button:disabled{opacity:0.5;cursor:not-allowed}
-#aicp-output{width:900px;height:600px;min-width:500px;min-height:300px;background:#0f3460;border-radius:8px;overflow:hidden;resize:both;position:relative;margin-top:16px}
+#aicp-output{width:100%;max-width:100%;height:70vh;min-width:100%;min-height:50vh;background:#0f3460;border-radius:8px;overflow:hidden;resize:both;position:relative;margin-top:16px}
 #aicp-output::after{content:'';position:absolute;bottom:0;right:0;width:24px;height:24px;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,0.2) 50%);cursor:nwse-resize;border-radius:0 0 8px 0;pointer-events:none}
 .status-text{font-size:12px;color:#a0a0a0;text-align:center;padding:4px 0;flex-shrink:0}
+.cfg-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:99999;display:flex;align-items:center;justify-content:center}
+.cfg-box{background:#1a1a2e;padding:20px;border-radius:10px;width:90%;max-width:400px}
+.cfg-box h3{color:#e94560;margin-bottom:16px}
+.cfg-box input{width:100%;padding:10px;margin-bottom:10px;background:#0f3460;color:#fff;border:1px solid #1a1a5e;border-radius:6px;font-size:14px}
+.cfg-box button{flex:1;padding:10px;border:none;border-radius:6px;font-size:14px;cursor:pointer}
+
+@media(max-width:768px){
+    body{padding:8px}
+    h1{font-size:18px;margin-bottom:10px}
+    .main{gap:10px}
+    .input-row{flex-wrap:wrap;gap:6px}
+    #cmdInput{min-height:44px;max-height:120px;font-size:14px;padding:10px 14px}
+    button{padding:8px 12px;font-size:11px;border-radius:6px}
+    #aicp-output{height:60vh;min-height:300px;resize:vertical}
+    .status-text{font-size:10px}
+}
 </style>
 </head>
 <body>
@@ -26,7 +42,7 @@ button:disabled{opacity:0.5;cursor:not-allowed}
     <div class="input-row">
         <textarea id="cmdInput" placeholder="Speak your command..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();run()}"></textarea>
         <button id="runBtn" onclick="run()">Do it</button>
-        <button id="saveBtn" onclick="saveHTML()" style="background:#1a1a5e;">💾 Save</button>
+        <button id="saveBtn" onclick="saveHTML()" style="background:#1a1a5e;">💾</button>
         <button id="settingsBtn" onclick="showSettings()" style="background:#1a1a5e;">⚙️</button>
     </div>
 </div>
@@ -34,21 +50,36 @@ button:disabled{opacity:0.5;cursor:not-allowed}
 <div id="status" class="status-text">引擎就绪 | 拖拽右下角自由调整容器大小 | Shift+Enter 换行</div>
 
 <script type="module">
-    import aicp, { Config } from '/aicp-core/aicp-core.js';
+    import aicp from '/aicp-core/aicp-core.js';
     
     const runBtn = document.getElementById('runBtn');
     const cmdInput = document.getElementById('cmdInput');
     const output = document.getElementById('aicp-output');
     const statusEl = document.getElementById('status');
     
+    const CACHE_KEY = 'aicp_demo_version';
+    const CURRENT_VERSION = '20260101';
+    if (localStorage.getItem(CACHE_KEY) !== CURRENT_VERSION) {
+        localStorage.setItem(CACHE_KEY, CURRENT_VERSION);
+        location.reload(true);
+    }
+    
+    // 首次加载用 prompt
+    if (!localStorage.getItem('aicp_config')) {
+        const apiKey = prompt('请输入 API Key (DeepSeek/OpenAI 兼容):');
+        if (apiKey) {
+            const config = { apiKey, baseUrl: 'https://gpt-agent.cc/v1', model: 'doubao-seed-2.0-code', maxIter: 5, temperature: 0.1 };
+            localStorage.setItem('aicp_config', JSON.stringify(config));
+            aicp.agent.set('apiKey', apiKey);
+        }
+    }
+    
     window.run = async function() {
         const q = cmdInput.value.trim();
         if (!q) return;
         runBtn.disabled = true;
         statusEl.textContent = '⏳ 处理中...';
-        
         const rect = output.getBoundingClientRect();
-        
         try {
             const result = await aicp.send('runner/exec', {
                 messages: [{ role: 'user', content: q }],
@@ -57,13 +88,8 @@ button:disabled{opacity:0.5;cursor:not-allowed}
                 width: Math.floor(rect.width) - 4,
                 height: Math.floor(rect.height) - 4,
                 onStart: () => {},
-                onDone: (data) => {
-                    statusEl.textContent = '✅ 完成 | 拖拽右下角自由调整容器大小';
-                },
-                onError: (err) => {
-                    statusEl.textContent = '❌ ' + err;
-                    output.innerHTML = `<div style="color:#e94560;padding:20px;">❌ ${err}</div>`;
-                },
+                onDone: (d) => { statusEl.textContent = '✅ 完成'; },
+                onError: (e) => { statusEl.textContent = '❌ ' + e; output.innerHTML = `<div style="color:#e94560;padding:20px;">❌ ${e}</div>`; },
             });
         } catch (e) {
             statusEl.textContent = '❌ ' + e.message;
@@ -73,54 +99,47 @@ button:disabled{opacity:0.5;cursor:not-allowed}
         cmdInput.focus();
     };
 
+    // 内联表单（所有浏览器通用）
     window.showSettings = function() {
-    const config = aicp.config || {};
-    const apiKey = prompt('API Key:', config.apiKey || '');
-    if (apiKey === null) return;
-    const baseUrl = prompt('Base URL:', config.baseUrl || 'https://gpt-agent.cc/v1');
-    if (baseUrl === null) return;
-    const model = prompt('Model:', config.model || 'doubao-seed-2.0-code');
-    if (model === null) return;
-    const maxIter = prompt('Max Retries:', config.maxIter || 5);
-    if (maxIter === null) return;
-    const temperature = prompt('Temperature (0-1):', config.temperature || 0.1);
-    if (temperature === null) return;
-
-    const newConfig = { 
-        apiKey, baseUrl, model, 
-        maxIter: parseInt(maxIter), 
-        temperature: parseFloat(temperature) 
+        const saved = localStorage.getItem('aicp_config');
+        let config = {};
+        try { config = JSON.parse(saved) || {}; } catch(e) {}
+        
+        const ov = document.createElement('div');
+        ov.className = 'cfg-overlay';
+        ov.innerHTML = `<div class="cfg-box">
+            <h3>⚙️ Config</h3>
+            <input id="cfgKey" placeholder="API Key" value="${config.apiKey||''}">
+            <input id="cfgUrl" placeholder="Base URL" value="${config.baseUrl||'https://gpt-agent.cc/v1'}">
+            <input id="cfgModel" placeholder="Model" value="${config.model||'doubao-seed-2.0-code'}">
+            <div style="display:flex;gap:10px;">
+                <button style="background:#333;color:#fff" onclick="document.body.removeChild(this.closest('.cfg-overlay'))">Cancel</button>
+                <button id="cfgSave" style="background:#e94560;color:#fff">Save</button>
+            </div>
+        </div>`;
+        document.body.appendChild(ov);
+        document.getElementById('cfgSave').onclick = () => {
+            const c = {
+                apiKey: document.getElementById('cfgKey').value.trim(),
+                baseUrl: document.getElementById('cfgUrl').value.trim() || 'https://gpt-agent.cc/v1',
+                model: document.getElementById('cfgModel').value.trim() || 'doubao-seed-2.0-code',
+                maxIter: 5, temperature: 0.1,
+            };
+            localStorage.setItem('aicp_config', JSON.stringify(c));
+            Object.assign(aicp.config, c);
+            aicp.agent.set('apiKey', c.apiKey);
+            aicp.agent.set('baseUrl', c.baseUrl);
+            aicp.agent.set('model', c.model);
+            document.body.removeChild(ov);
+            statusEl.textContent = '✅ Config saved';
+        };
     };
-    Object.assign(aicp.config, newConfig);
-    aicp.agent.set('apiKey', apiKey);
-    aicp.agent.set('baseUrl', baseUrl);
-    aicp.agent.set('model', model);
-    aicp.agent.set('maxIter', parseInt(maxIter));
-    aicp.agent.set('temperature', parseFloat(temperature));
-    
-    // 不管有没有 Config，都写 localStorage
-    try {
-        Config.save(newConfig);
-    } catch(e) {
-        localStorage.setItem('aicp_config', JSON.stringify(newConfig));
-    }
-    
-    statusEl.textContent = '✅ Config updated';
-};
 
-   window.saveHTML = async function() {
-    if (!output.children.length) {
-        alert('No content to save');
-        return;
-    }
-    
-    const code = output.getAttribute('data-aicp-code') || '';
-    const escapedCode = code
-        .replace(/\\/g, '\\\\')
-        .replace(/`/g, '\\`')
-        .replace(/\$/g, '\\$');
-    
-    const html = `<!DOCTYPE html>
+    window.saveHTML = async function() {
+        if (!output.children.length) { alert('No content to save'); return; }
+        const code = output.getAttribute('data-aicp-code') || '';
+        const escapedCode = code.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+        const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -134,6 +153,11 @@ body{min-height:100vh;padding:8px}
 #aicp-container > canvas{position:absolute;top:0;left:0;z-index:0}
 .config-btn{position:fixed;top:10px;right:10px;z-index:9999;padding:6px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px}
 .config-btn:hover{background:#2563eb}
+.cfg-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:99999;display:flex;align-items:center;justify-content:center}
+.cfg-box{background:#1a1a2e;padding:20px;border-radius:10px;width:90%;max-width:400px}
+.cfg-box h3{color:#e94560;margin-bottom:16px}
+.cfg-box input{width:100%;padding:10px;margin-bottom:10px;background:#0f3460;color:#fff;border:1px solid #1a1a5e;border-radius:6px;font-size:14px}
+.cfg-box button{flex:1;padding:10px;border:none;border-radius:6px;font-size:14px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -143,77 +167,55 @@ body{min-height:100vh;padding:8px}
 const aicpCode=\`${escapedCode}\`;
 
 function getLLMConfig() {
-    return {
-        apiKey: localStorage.getItem('aicp_api_key') || '',
-        baseUrl: localStorage.getItem('aicp_base_url') || 'https://gpt-agent.cc/v1',
-        model: localStorage.getItem('aicp_model') || 'doubao-seed-2.0-code',
-        temperature: parseFloat(localStorage.getItem('aicp_temperature')) || 0.1,
-    };
+    try { const saved = JSON.parse(localStorage.getItem('aicp_config')); if (saved && saved.apiKey) return saved; } catch(e) {}
+    return { apiKey: '', baseUrl: 'https://gpt-agent.cc/v1', model: 'doubao-seed-2.0-code', temperature: 0.1 };
 }
-
-function saveLLMConfig(config) {
-    localStorage.setItem('aicp_api_key', config.apiKey);
-    localStorage.setItem('aicp_base_url', config.baseUrl);
-    localStorage.setItem('aicp_model', config.model);
-    localStorage.setItem('aicp_temperature', String(config.temperature));
-}
+function saveLLMConfig(c) { localStorage.setItem('aicp_config', JSON.stringify(c)); }
 
 window.showLLMConfig = function() {
     const cfg = getLLMConfig();
-    const apiKey = prompt('API Key:', cfg.apiKey);
-    if (apiKey === null) return;
-    const baseUrl = prompt('Base URL:', cfg.baseUrl);
-    if (baseUrl === null) return;
-    const model = prompt('Model:', cfg.model);
-    if (model === null) return;
-    const temperature = parseFloat(prompt('Temperature (0-1):', String(cfg.temperature)));
-    if (isNaN(temperature)) return;
-    
-    saveLLMConfig({ apiKey, baseUrl, model, temperature });
-    alert('配置已更新，即将刷新页面');
-    location.reload();
+    const ov = document.createElement('div');
+    ov.className = 'cfg-overlay';
+    ov.innerHTML = '<div class="cfg-box"><h3>⚙️ Config</h3><input id="cfgKey" placeholder="API Key" value="'+cfg.apiKey+'"><input id="cfgUrl" placeholder="Base URL" value="'+cfg.baseUrl+'"><input id="cfgModel" placeholder="Model" value="'+cfg.model+'"><div style="display:flex;gap:10px;"><button style="background:#333;color:#fff" onclick="document.body.removeChild(this.closest(\'.cfg-overlay\'))">Cancel</button><button id="cfgSave" style="background:#e94560;color:#fff">Save</button></div></div>';
+    document.body.appendChild(ov);
+    document.getElementById('cfgSave').onclick = function() {
+        const c = { apiKey: document.getElementById('cfgKey').value.trim(), baseUrl: document.getElementById('cfgUrl').value.trim() || 'https://gpt-agent.cc/v1', model: document.getElementById('cfgModel').value.trim() || 'doubao-seed-2.0-code', temperature: 0.1 };
+        saveLLMConfig(c);
+        document.body.removeChild(ov);
+        alert('配置已更新，即将刷新页面');
+        location.reload();
+    };
 };
 
 document.addEventListener('DOMContentLoaded', function() {
     const needLLM = aicpCode.includes('llm(') || aicpCode.includes('llm ');
     let llm = null;
     if (needLLM) {
-        const cfg = getLLMConfig();
-        if (!cfg.apiKey) {
-            window.showLLMConfig();
-            cfg.apiKey = localStorage.getItem('aicp_api_key') || '';
-        }
+        let cfg = getLLMConfig();
+        if (!cfg.apiKey) { window.showLLMConfig(); cfg = getLLMConfig(); }
         if (cfg.apiKey) {
             let llmCallCount = 0;
             llm = async (msgs) => {
                 if (llmCallCount >= 9999) throw new Error('LLM 调用次数超限');
                 llmCallCount++;
-                const resp = await fetch(cfg.baseUrl + '/chat/completions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
-                    body: JSON.stringify({ model: cfg.model, messages: msgs, temperature: cfg.temperature })
-                });
+                const resp = await fetch(cfg.baseUrl + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey }, body: JSON.stringify({ model: cfg.model, messages: msgs, temperature: cfg.temperature }) });
                 const data = await resp.json();
                 return data.choices?.[0]?.message?.content || data.content || '';
             };
         }
     }
-
     if(aicpCode&&aicpCode.trim()){try{const c=document.getElementById('aicp-container');const fn=new Function('__aicp_container__','__aicp_width__','__aicp_height__','llm','document','Math','Date','JSON','setTimeout','clearTimeout','setInterval','clearInterval','requestAnimationFrame','cancelAnimationFrame',aicpCode);fn(c,c.clientWidth||window.innerWidth-16,c.clientHeight||window.innerHeight-16,llm,document,Math,Date,JSON,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame,cancelAnimationFrame)}catch(e){console.error(e)}}
 });
 <\/script>
 </body>
 </html>`;
-    
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aicp-generated-${Date.now()}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    statusEl.textContent = '✅ Saved as standalone HTML';
-};
+        const blob = new Blob([html], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `aicp-generated-${Date.now()}.html`;
+        a.click();
+        statusEl.textContent = '✅ Saved as standalone HTML';
+    };
 </script>
 </body>
 </html>
