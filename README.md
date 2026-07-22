@@ -17,7 +17,7 @@ AICP JS Engine delivers the shortest path from "natural language" to "visual out
 - **Sandbox is the runtime** — executes code in a restricted environment with injected globals (container, canvas size)
 - **DOM is the canvas** — renders directly to a specified container. Canvas, DOM, Web Animation — everything works
 
-[Live Demo, Click to Play](https://live.biopoiesis.net/demo.html)
+[Live Web for free, Click to Play](https://acipstudio.com)
 
 All configuration stored in local localStorage. Pure static webpage. No backend.
 
